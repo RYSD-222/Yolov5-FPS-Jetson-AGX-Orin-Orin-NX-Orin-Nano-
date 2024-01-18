@@ -97,7 +97,9 @@ def run(
     half=False,  # use FP16 half-precision inference
     dnn=False,  # use OpenCV DNN for ONNX inference
     vid_stride=1,  # video frame-rate stride
+    each_frame_fps=False,
 ):
+    each_frame_fps=opt.each_frame_fps
     source = str(source)
     save_img = not nosave and not source.endswith(".txt")  # save inference images
     is_file = Path(source).suffix[1:] in (IMG_FORMATS + VID_FORMATS)
@@ -134,9 +136,9 @@ def run(
     model.warmup(imgsz=(1 if pt or model.triton else bs, 3, *imgsz))  # warmup
     seen, windows, dt = 0, [], (Profile(device=device), Profile(device=device), Profile(device=device))
 
+    # FPS2 Start
     p0 = time.perf_counter()
     framenum=0
-#    print (p0)
 
     for path, im, im0s, vid_cap, s in dataset:
         framenum +=1
@@ -259,17 +261,22 @@ def run(
 #                        vid_writer[i] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
 #                    vid_writer[i].write(im0)
 
-        # Print time (inference-only)
-#        LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1E3:.1f}ms")
         p1 = time.perf_counter()
         fps = framenum / (p1-p0)
         if framenum==100:
-             print ("Frame number 100")
-        print ("FPS : {:.2f}fps ".format(fps))
+#             print ("Frame number 100")
+             fps100 = fps
+        if each_frame_fps:
+             print ("FPS : {:.2f}fps ".format(fps))
+             # Print time (inference-only)
+             LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1E3:.1f}ms")
 
     # Print results
     t = tuple(x.t / seen * 1e3 for x in dt)  # speeds per image
     LOGGER.info(f"Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {(1, 3, *imgsz)}" % t)
+    print ("-------------")
+    print ("FPS2  : {:.2f}fps (1~100frame average)".format(fps100))
+    print ("-------------")
     if save_txt or save_img:
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ""
         LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}{s}")
@@ -307,6 +314,7 @@ def parse_opt():
     parser.add_argument("--half", action="store_true", help="use FP16 half-precision inference")
     parser.add_argument("--dnn", action="store_true", help="use OpenCV DNN for ONNX inference")
     parser.add_argument("--vid-stride", type=int, default=1, help="video frame-rate stride")
+    parser.add_argument("--each-frame-fps", action="store_true", help="display fps for each frame")
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
     print_args(vars(opt))
@@ -319,5 +327,7 @@ def main(opt):
 
 
 if __name__ == "__main__":
+#    each_frame_fps = True
+#    each_frame_fps = False
     opt = parse_opt()
     main(opt)
